@@ -32,7 +32,7 @@ fn proggen() -> io::Result<()> {
     // Maximum size of the input file in bits. This means bit indicies which
     // are used for the input of the program always are in a range of
     // [0, MAX_INPUT_SIZE_BITS).
-    const MAX_INPUT_SIZE_BITS: usize = 512;
+    const MAX_INPUT_SIZE_BITS: usize = 256;
 
     // !!! NOTE !!!
     // All the below chances are the "one in <val>" chance figures.

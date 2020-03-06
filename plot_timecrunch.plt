@@ -2,11 +2,11 @@ set terminal wxt size 1440,900
 #set output "output.png"
 set logscale xy
 set grid
-set title "Time to find all known bugs with different fuzzer configurations"
+set title "Coverage numbers with a given number of cores at a fixed time budget"
 set xlabel "Number of Cores"
-set ylabel "Average \"time\" to all bugs and coverage (in fuzz cases / cores)"
+set ylabel "Coverage numbers at a fixed time limit"
 set key font "monospace,14"
-set key right
+set key left
 plot \
     "coverage_false_inputshare_false_resultshare_false.txt" u 1:2 w lp t "Feedback: No,  Share input: No,  Share results: No ", \
     "coverage_false_inputshare_false_resultshare_true.txt" u 1:2 w lp  t "Feedback: No,  Share input: No,  Share results: Yes", \
