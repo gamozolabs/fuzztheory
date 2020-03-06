@@ -1,0 +1,7 @@
+/target
+/data
+/guided*
+/histo.plt
+/output
+/output.png
+/test*
