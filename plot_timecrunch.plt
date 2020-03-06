@@ -1,6 +1,6 @@
 set terminal wxt size 1440,900
 #set output "output.png"
-set logscale xy
+set logscale x
 set grid
 set title "Coverage numbers with a given number of cores at a fixed time budget"
 set xlabel "Number of Cores"

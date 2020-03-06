@@ -149,7 +149,7 @@ fn main() {
     /// Specifies a time constraint for the fuzzer. This allows us to capture
     /// data in a format which allows generating the progress with a fixed
     /// amount of time.
-    const TIME_CONSTRAINT: Option<f64> = Some(500.);
+    const TIME_CONSTRAINT: Option<f64> = Some(50000.);
 
     // List of active threads such that we can join() on their completion
     let mut threads = Vec::new();
@@ -159,7 +159,7 @@ fn main() {
     for &shared_inputs in &[false, true] {
         for &shared_results in &[false, true] {
             for &guided in &[false, true] {
-                for num_workers in (1..=256).step_by(1) {
+                for num_workers in (1..=32).step_by(1) {
                     todo.push(
                         (guided, shared_inputs, shared_results, num_workers));
                 }
@@ -209,7 +209,7 @@ fn main() {
                             // constraint. This may lead to unexpected results.
                             if tmp.is_ok() {
                                 print!("WARNING: All coverage observed \
-                                       within time constraint");
+                                       within time constraint\n");
                             }
 
                             // Get the number of coverage records at the
