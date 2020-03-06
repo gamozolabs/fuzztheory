@@ -144,12 +144,12 @@ fn main() {
 
     /// Number of iterations of each fuzz attempt to perform, to generate an
     /// average value per data point.
-    const AVERAGES: usize = 10;
+    const AVERAGES: usize = 100;
 
     /// Specifies a time constraint for the fuzzer. This allows us to capture
     /// data in a format which allows generating the progress with a fixed
     /// amount of time.
-    const TIME_CONSTRAINT: Option<f64> = None;
+    const TIME_CONSTRAINT: Option<f64> = Some(500.);
 
     // List of active threads such that we can join() on their completion
     let mut threads = Vec::new();
@@ -159,7 +159,7 @@ fn main() {
     for &shared_inputs in &[false, true] {
         for &shared_results in &[false, true] {
             for &guided in &[false, true] {
-                for num_workers in (1..=256).step_by(16) {
+                for num_workers in (1..=256).step_by(1) {
                     todo.push(
                         (guided, shared_inputs, shared_results, num_workers));
                 }
