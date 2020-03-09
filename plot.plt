@@ -1,4 +1,4 @@
-set terminal wxt size 1440,900
+set terminal wxt size 3000,2000
 #set output "output.png"
 set logscale xy
 set grid

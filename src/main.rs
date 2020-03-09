@@ -32,7 +32,7 @@ fn proggen() -> io::Result<()> {
     // Maximum size of the input file in bits. This means bit indicies which
     // are used for the input of the program always are in a range of
     // [0, MAX_INPUT_SIZE_BITS).
-    const MAX_INPUT_SIZE_BITS: usize = 4096;
+    const MAX_INPUT_SIZE_BITS: usize = 1024;
 
     // !!! NOTE !!!
     // All the below chances are the "one in <val>" chance figures.
@@ -43,32 +43,17 @@ fn proggen() -> io::Result<()> {
     // Chance of ending the current if statement (ending the block)
     const END_BLOCK_CHANCE: usize = 4;
 
-    // Chance that on the ending of a block, a crashing memory access is emit
-    const CRASH_CHANCE: usize = 8;
-
-    // Chance that a crash condition can occur without coverage. This simulates
-    // an out-of-bounds access where the block may be valid in many situations.
-    // We simply omit generating coverage events.
-    const NON_COVERAGE_CRASH_CHANCE: usize = 16;
-
     // Chance of ending the program generation, finishing all unfinished blocks
     // unconditionally.
     // This is effectively what limits the size of the program (and the
     // `MAX_INPUT_SIZE_BITS`)
     const DONE_CHANCE: usize = 128;
 
-    // Minimum number of crashes to generate (exiting the loop will not occur
-    // until at least this many crashes are generated)
-    const MIN_CRASHES: u64 = 200;
-    
     // Minimum number of blocks to generate (exiting the loop will not occur
     // until at least this many blocks are generated).
     const MIN_BLOCKS: u64 = 5000;
 
     // Maximum number of bit allocation failures until we finally give up.
-    // This will abruptly terminate the program (even prior to MIN_CRASHES and
-    // MAX_CRASHES), if we were unable to have more bits to use for program
-    // flow.
     //
     // Allowing failures effectively makes deeper branches less complex, which
     // typically will make the graph not very realistic to a real program as
@@ -127,9 +112,6 @@ fn proggen() -> io::Result<()> {
     // Number of blocks
     let mut num_blocks = 0u64;
 
-    // Number of crashes
-    let mut num_crashes = 0u64;
-    
     // Tab in the program by `depth` tabs
     macro_rules! tab { () => { for _ in 0..depth { program += "    "; } } }
 
@@ -139,40 +121,20 @@ fn proggen() -> io::Result<()> {
         () => {
             tab!();
             program += &format!(
-                "if _coverage[{}] == 0 {{ _new_coverage.push({}) }}\n",
-                num_blocks, num_blocks);
+                "if _coverage[{}] == 0 {{ new_coverage = true; }}\n",
+                num_blocks);
             tab!();
             program += &format!("_coverage[{}] += 1;\n", num_blocks);
             num_blocks += 1;
         }
     }
     
-    // Generate a crash record based on the unique crash ID, then update the
-    // number of unique crashes
-    macro_rules! crash {
-        () => {
-            tab!();
-            program += &format!(
-                "if _crashes[{}] == 0 {{ _new_crashes.push({}) }}\n",
-                num_crashes, num_crashes);
-
-            tab!();
-            program += &format!("_crashes[{}] += 1;\n", num_crashes);
-
-            // Crashes should break out of the function to allow for a new fuzz
-            // case
-            tab!();
-            program += "return;\n";
-
-            num_crashes += 1;
-        }
-    }
-
     // The good stuff
-    // Returns (new_coverage, new_crash)
-    program += "fn crashme(_input: &[u8], _coverage: &mut [u64], \
-        _crashes: &mut [u64], _new_coverage: &mut Vec<usize>,
-        _new_crashes: &mut Vec<usize>) {\n";
+    // Returns `true` if new coverage was reached
+    program += "#[inline(never)] fn crashme(_input: &[u8; NUM_BYTES], _coverage: &mut [u64; NUM_COVERAGE]) -> bool {\n";
+
+    tab!();
+    program += "let mut new_coverage = false;\n";
 
     coverage!();
 
@@ -196,23 +158,13 @@ fn proggen() -> io::Result<()> {
                 // Generate a target value for these bits
                 let target = rng.rand() as u8 & mask;
 
-
                 tab!();
                 program += &format!(
                     "if _input[{}] & {:#010b} == {:#010b} {{\n",
                     start_byte, mask, target);
                 depth += 1;
 
-                // Random chance of creating a conditional crash that cannot
-                // be tracked with coverage events. Eg. an OOB access
-                if rng.rand() % NON_COVERAGE_CRASH_CHANCE == 0 {
-                    crash!();
-                    depth -= 1;
-                    tab!();
-                    program += "}\n";
-                } else {
-                    coverage!();
-                }
+                coverage!();
             } else {
                 alloc_failures += 1;
                 if alloc_failures >= MAX_ALLOC_FAILURES {
@@ -225,19 +177,13 @@ fn proggen() -> io::Result<()> {
  
         // Random chance to de-tab
         if depth > 1 && rng.rand() % END_BLOCK_CHANCE == 0 {
-            // Random chance of a crashing target
-            if rng.rand() % CRASH_CHANCE == 0 {
-                crash!();
-            }
-
             depth -= 1;
             tab!();
             program += "}\n";
         }
 
         // Random chance to end the loop
-        if num_crashes >= MIN_CRASHES && num_blocks >= MIN_BLOCKS &&
-            rng.rand() % DONE_CHANCE == 0 { break; }
+        if num_blocks >= MIN_BLOCKS && rng.rand() % DONE_CHANCE == 0 { break; }
     }
 
     // Clean out brackets
@@ -247,10 +193,13 @@ fn proggen() -> io::Result<()> {
         program += "}\n";
     }
 
+    // Return value
+    tab!();
+    program += "new_coverage\n";
+
     // End the program
     program += "}\n";
 
-    program += &format!("const NUM_CRASHES:  usize = {};\n", num_crashes);
     program += &format!("const NUM_COVERAGE: usize = {};\n", num_blocks);
     program += &format!("const NUM_BYTES:    usize = {};\n",
         ((MAX_INPUT_SIZE_BITS + 7) & !7) / 8);
@@ -261,14 +210,14 @@ fn proggen() -> io::Result<()> {
 
     // Build the program
     assert!(Command::new("rustc")
+        .arg("-g")
         .arg("-O")
         .arg("test.rs")
         .status()?.success());
 
     // Print out the program "complexity"
     print!("Program complexity:\n\
-        Blocks:  {}\n\
-        Crashes: {}\n", num_blocks, num_crashes);
+        Blocks:  {}\n", num_blocks);
    
     // Run the program
     assert!(Command::new("./test")
